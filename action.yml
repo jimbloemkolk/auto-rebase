@@ -1,0 +1,16 @@
+name: 'Auto Rebase PRs'
+description: 'Automatic rebasing when a base branch changes, for efficient PR flows'
+branding:
+  icon: git-pull-request
+  color: green
+inputs:
+  github_token:
+    description: Token for the GitHub API.
+    required: true
+  filter:
+    description: Filter to be used. 'auto-merge' | 'always'
+    required: false
+    default: 'auto-merge'
+runs:
+  using: 'node16'
+  main: 'dist/index.js'
