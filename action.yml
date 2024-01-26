@@ -1,4 +1,4 @@
-name: 'Auto Rebase PRs'
+name: 'Auto Rebase PR'
 description: 'Automatic rebasing when a base branch changes, for efficient PR flows'
 branding:
   icon: git-pull-request
