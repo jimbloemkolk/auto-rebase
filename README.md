@@ -25,7 +25,7 @@ jobs:
   rebase:
     runs-on: ubuntu-latest
     steps:
-      - uses: jimbloemkolk/auto-rebase@v0.1.0
+      - uses: Piyushhbhutoria/auto-rebase@v1.0.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 ```

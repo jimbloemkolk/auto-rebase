@@ -22,46 +22,55 @@ console.log(`Owner: ${owner}`)
 console.log(`Repository: ${repo}`)
 console.log(`Current branch: ${base}`)
 
-try {
-    run(octokit, owner, repo, base);
-} catch(error: any) {
-    setFailed(error.message);
-}
+run(octokit, owner, repo, base).catch(error => setFailed(error.message));
 
 async function run(octokit: Octokit, owner: string, repo: string, base: string) {
     const pulls = await octokit.paginate("GET /repos/{owner}/{repo}/pulls", {
-        owner: owner,
-        repo: repo,
-        base: base
+        owner,
+        repo,
+        base
     }, res => res.data);
-    
-    let pullsToRebase;
-    if (filter === 'auto-merge') {
-        pullsToRebase = pulls.filter(pull => pull.auto_merge !== null)
 
-        if (pullsToRebase.length === 0) {
-            console.log(`No PR's updated. There are ${pulls.length} PR's open, but none are on auto merge`)
-        }
-    } else {
-        pullsToRebase = pulls
+    const pullsOutOfDatePromises = pulls.map(pull => out_of_date(octokit, owner, repo, pull));
+    const pullsOutOfDate = await Promise.all(pullsOutOfDatePromises);
+    const pullsToRebase = filter === 'auto-merge' 
+        ? pulls.filter(pull => pull.auto_merge !== null) 
+        : pulls.filter((pull, index) => pullsOutOfDate[index]);
+
+    if (filter === 'auto-merge' && pullsToRebase.length === 0) {
+        console.log(`No PR's updated. There are ${pulls.length} PR's open, but none are on auto merge`);
+        return;
     }
 
-    await Promise.all(pullsToRebase.map(async (pull) => {
-        try {
-            const newSha = await rebasePullRequest({
-                octokit,
-                owner: owner,
-                pullRequestNumber: pull.number,
-                repo: repo
-            })
-            console.log(`updated PR "${pull.title}" to new HEAD ${newSha}`)
-        } catch(error: any) {
-            console.log(error.message)
-            if (error instanceof Error && error.message === "Merge conflict") {
-                console.log(`Could not update "${pull.title}" because of merge conflicts`)
-            } else {
-                throw error;
-            }
+    await Promise.all(pullsToRebase.map(rebaseAndUpdate));
+}
+
+async function rebaseAndUpdate(pull: any) {
+    try {
+        const newSha = await rebasePullRequest({
+            octokit,
+            owner,
+            pullRequestNumber: pull.number,
+            repo
+        });
+        console.log(`updated PR "${pull.title}" to new HEAD ${newSha}`);
+    } catch (error: any) {
+        console.log(error.message);
+        if (error instanceof Error && error.message === "Merge conflict") {
+            console.log(`Could not update "${pull.title}" because of merge conflicts`);
+        } else {
+            throw error;
         }
-    }));
+    }
+}
+
+async function out_of_date(octokit: Octokit, owner: string, repo: string, pull: any): Promise<boolean> {
+    const comparison = await octokit.rest.repos.compareCommits({
+        owner,
+        repo,
+        base: pull.base.ref,
+        head: pull.head.sha
+    });
+
+    return comparison.data.status === 'behind';
 }
